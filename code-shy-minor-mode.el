@@ -118,7 +118,7 @@ Vimish-fold's any blocks matching code-shy-fold-pattern
   )
 
 (define-globalized-minor-mode global-code-shy-minor-mode
-  code-shy code-shy)
+  code-shy-minor-mode code-shy-minor-mode)
 
 ;;-- end mode definition
 
