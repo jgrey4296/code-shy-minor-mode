@@ -103,15 +103,15 @@ Vimish-fold's any blocks matching code-shy-fold-pattern
   " Minor mode to automatically hide blocks of text upon loading a buffer "
   :init-value nil
   :lighter "CodeShy"
-  (cond ((or (not code-shy)
+  (cond ((or (not code-shy-minor-mode)
              (minibufferp)
              (-contains? code-shy-exclusions major-mode)
              (not (apply 'derived-mode-p code-shy-derivations))
              )
          nil)
-        ((and code-shy code-shy-start-hidden)
+        ((and code-shy-minor-mode code-shy-start-hidden)
          (code-shy-run-folds))
-        (code-shy
+        (code-shy-minor-mode
          (code-shy-clear-vimish-cache)
          )
         )
