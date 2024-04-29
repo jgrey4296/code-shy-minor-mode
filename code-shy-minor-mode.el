@@ -8,7 +8,7 @@
 ;;-- end requires
 
 ;;-- vars
-(defvar-local code-shy-fold-pattern "%s-- %s %s")
+(defvar-local code-shy-fold-patterns (list "%s-- %s %s" "%s -- $s $s") "Patterns to format with comment, end? and name form" )
 (defvar-local code-shy-block-depth 2)
 (defvar code-shy-start-hidden t)
 (defvar code-shy-exclusions '(helm-major-mode ivy-mode minibuffer-mode dired-mode fundamental-mode))
@@ -31,17 +31,20 @@ keys:
   (let* ((comment-str (apply 'concat (make-list code-shy-block-depth (s-trim (or comment ";;")))))
          (end-str (when end "end "))
          (name-form (s-concat end-str name))
-         (full-pattern (s-trim (format code-shy-fold-pattern comment-str name-form comment-end)))
+         (full-pattern
+          (format "\\(?:%s\\)" (s-join "\\|" (mapcar #'(lambda (x) (s-trim (format x comment-str name-form comment-end))) code-shy-fold-patterns)))
+          )
+         (single-pattern (s-trim (format (car code-shy-fold-patterns) comment-str name-form comment-end)))
          )
     (cond ((and re newlines)         (error "Fold Block Invalid Combined Args: :re and :newlines"))
           ((and newlines (not name)) (error ":newlines should also have :name"))
-          (re       (s-concat "^[[:blank:]]*" full-pattern))
-          (newlines (s-concat (if end "\n" "") full-pattern "\n"))
+          (re       (s-concat "^.?*" full-pattern))
+          (newlines (s-concat (if end "\n" "") single-pattern "\n"))
           (t full-pattern))))
 
 (defun code-shy-run-folds ()
   " Add auto-hiding on buffer open.
-Vimish-fold's any blocks matching code-shy-fold-pattern
+Vimish-fold's any blocks matching code-shy-fold-patterns
 "
   (interactive)
   ;; (message "Running Auto Hide: %s %s" major-mode comment-start)
