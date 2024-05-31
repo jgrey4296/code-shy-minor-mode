@@ -1,0 +1,7 @@
+#+title: Code Shy Todos
+
+* code-shy-minor-mode
+:PROPERTIES:
+:ID:       ad2b5473-4311-421c-b319-77831f67f9b7
+:END:
+** add tests
