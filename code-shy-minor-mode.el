@@ -1,22 +1,52 @@
-;;; code-shy.el -*- lexical-binding: t; no-byte-compile: t; -*-
+;;; code-shy.el -*- lexical-binding: t; no-byte-compile: nil; -*-
 ;;-- requires
-(require 'vimish-fold)
-(require 's)
-(require 'evil)
-(require 'ivy)
-(require 'f)
+(eval-when-compile
+  (require 'vimish-fold)
+  (require 's)
+  (require 'evil)
+  (require 'ivy)
+  (require 'f)
+  (require 'dash)
+
+  (declare-function f-files "f")
+  (declare-function s-trim "s")
+  (declare-function s-concat "s")
+  (declare-function s-join "s")
+  (declare-function s-matches? "s")
+  (declare-function s-contains? "s")
+  (declare-function vimish-fold-delete-all "vimish-fold")
+  (declare-function vimish-fold--folds-in "vimish-fold")
+  (declare-function vimish-fold "vimish-fold")
+  (declare-function evil-signal-at-bob-or-eob "evil")
+  (declare-function -contains? "dash")
+  (declare-function ivy-read "ivy")
+  )
 ;;-- end requires
 
 ;;-- vars
+
 (defvar-local code-shy-fold-patterns (list "%s-- %s %s" "%s -- $s $s") "Patterns to format with comment, end? and name form" )
+
 (defvar-local code-shy-block-depth 2)
+
 (defvar code-shy-start-hidden t)
+
 (defvar code-shy-exclusions '(helm-major-mode ivy-mode minibuffer-mode dired-mode fundamental-mode))
+
 (defvar code-shy-derivations '(prog-mode bibtex-mode conf-mode latex-mode))
+
+(defvar-local code-shy--last-fold nil)
+
 ;;-- end vars
 
 ;;-- main functions
-(cl-defun code-shy-fold-block-gen ( &rest rst &key (name "\\(.+\\)") (end nil) (re nil) (newlines nil) (comment comment-start))
+(cl-defun code-shy-fold-block-gen ( &rest rst &key
+                                          (name "\\(.+\\)")
+                                          (end nil)
+                                          (re nil)
+                                          (newlines nil)
+                                          (comment comment-start)
+                                          )
   " Single point to build fold block markers
 Auto-recognizes the current major-mode's commment syntax
 
@@ -72,6 +102,8 @@ Vimish-fold's any blocks matching code-shy-fold-patterns
 
       (when (and start-hide end-hide (not (vimish-fold--folds-in start-hide end-hide)))
         ;; (message "Folding: %s %s %s" group-name start-hide end-hide)
+        ;; (put-text-property start-hide end-hide 'cursor-sensor-functions (list #'code-shy-sensor-h))
+        ;; (put-text-property start-hide end-hide 'front-sticky t)
         (vimish-fold start-hide end-hide)
         (goto-char end-hide))
       (forward-line)
@@ -80,8 +112,85 @@ Vimish-fold's any blocks matching code-shy-fold-patterns
     )
   )
 
+(defun code-shy-sensor-h ()
+  (interactive)
+  ;; Cleanup/exit
+  (cond ((not code-shy--last-fold)
+         nil)
+        ((not (overlayp code-shy--last-fold))
+         (setq code-shy--last-fold nil))
+        ((not (buffer-live-p (overlay-buffer code-shy--last-fold)))
+         (delete-overlay code-shy--last-fold)
+         (setq code-shy--last-fold nil)
+         )
+        ((not (and (<= (overlay-start code-shy--last-fold) (point))
+                   (<= (point) (overlay-end code-shy--last-fold))))
+         (save-excursion
+           (vimish-fold--refold code-shy--last-fold)
+           )
+         (setq code-shy--last-fold nil)
+         )
+        )
+  ;; enter
+  (unless code-shy--last-fold
+    (-when-let (ov (-filter #'vimish-fold--vimish-overlay-p (overlays-at (point))))
+        (setq code-shy--last-fold (car ov))
+        (vimish-fold--unfold (car ov))
+        )
+    )
+  )
+
 (defun code-shy-clear-vimish-cache ()
   (mapc 'f-delete (f-files vimish-fold-dir))
+  )
+
+;;-- end main functions
+
+;;-- mode definition
+
+(define-minor-mode code-shy-minor-mode
+  " Minor mode to automatically hide blocks of text upon loading a buffer "
+  :init-value nil
+  :lighter "CodeShy"
+  :group 'code-shy
+  (cond ((or (not code-shy-minor-mode)
+             (minibufferp)
+             (-contains? code-shy-exclusions major-mode)
+             (not (apply 'derived-mode-p code-shy-derivations))
+             )
+         nil)
+        ((and code-shy-minor-mode code-shy-start-hidden)
+         (code-shy-run-folds)
+         (add-hook 'post-command-hook #'code-shy-sensor-h 90 t)
+         )
+        (code-shy-minor-mode
+         (code-shy-clear-vimish-cache)
+         )
+        )
+  )
+
+(define-globalized-minor-mode global-code-shy-minor-mode
+  code-shy-minor-mode code-shy-minor-mode
+  :group 'code-shy
+  )
+
+;;-- end mode definition
+
+;;-- evil
+(evil-define-operator code-shy-wrap-block (beg end _ &optional name)
+  " Operator to easily create fold blocks "
+  :type line
+  :keep-visual t
+  (interactive "<R>" (list (read-string "Block Name: ")))
+  ;; From bottom to top to not change interfere with positions
+  ;; add end fold block
+  (goto-char end)
+  (end-of-line)
+  (insert (code-shy-fold-block-gen :name name :end t :newlines t))
+  ;; and start fold block
+  (goto-char beg)
+  (beginning-of-line)
+  (insert (code-shy-fold-block-gen :name name :newlines t))
   )
 
 (evil-define-motion code-shy-forward-block (count)
@@ -99,53 +208,10 @@ Vimish-fold's any blocks matching code-shy-fold-patterns
   (code-shy-forward-block (- (or count 1)))
   )
 
-;;-- end main functions
-
-;;-- mode definition
-(define-minor-mode code-shy-minor-mode
-  " Minor mode to automatically hide blocks of text upon loading a buffer "
-  :init-value nil
-  :lighter "CodeShy"
-  (cond ((or (not code-shy-minor-mode)
-             (minibufferp)
-             (-contains? code-shy-exclusions major-mode)
-             (not (apply 'derived-mode-p code-shy-derivations))
-             )
-         nil)
-        ((and code-shy-minor-mode code-shy-start-hidden)
-         (code-shy-run-folds))
-        (code-shy-minor-mode
-         (code-shy-clear-vimish-cache)
-         )
-        )
-  )
-
-(define-globalized-minor-mode global-code-shy-minor-mode
-  code-shy-minor-mode code-shy-minor-mode)
-
-;;-- end mode definition
-
-;;-- evil operator
-(evil-define-operator code-shy-wrap-block (beg end type &optional name)
-  " Operator to easily create fold blocks "
-  :type line
-  :keep-visual t
-  (interactive "<R>" (list (read-string "Block Name: ")))
-  ;; From bottom to top to not change interfere with positions
-  ;; add end fold block
-  (goto-char end)
-  (end-of-line)
-  (insert (code-shy-fold-block-gen :name name :end t :newlines t))
-  ;; and start fold block
-  (goto-char beg)
-  (beginning-of-line)
-  (insert (code-shy-fold-block-gen :name name :newlines t))
-  )
-
-
-;;-- end evil operator
+;;-- end evil
 
 ;;-- ivy
+
 (defun code-shy-fold-jump-to-heading ()
   " Ivy to jump to code-shy sections  "
   (interactive)
@@ -154,16 +220,21 @@ Vimish-fold's any blocks matching code-shy-fold-patterns
       (goto-char (point-min))
       (while (re-search-forward (code-shy-fold-block-gen :re t) nil t)
         (if (not (s-contains? "end " (match-string 1)))
-            (push (match-string 1) sections)
+            (push (cons (match-string 1) (point)) sections)
           )
         )
       )
-    (goto-char (point-min))
-    (re-search-forward (code-shy-fold-block-gen :name (ivy-read "Heading: " sections)) nil t)
-    (beginning-of-line)
+    (ivy-read "Heading: " sections
+              :action #'(lambda (x)
+                          (goto-char (cdr x))
+                          (beginning-of-line)
+                          (vimish-fold-unfold)
+                          )
+              )
     )
   )
 
 ;;-- end ivy
 
 (provide 'code-shy-minor-mode)
+;;; code-shy-minor-mode.el ends here
