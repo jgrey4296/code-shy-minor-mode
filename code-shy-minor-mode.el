@@ -112,34 +112,6 @@ Vimish-fold's any blocks matching code-shy-fold-patterns
     )
   )
 
-(defun code-shy-sensor-h ()
-  (interactive)
-  ;; Cleanup/exit
-  (cond ((not code-shy--last-fold)
-         nil)
-        ((not (overlayp code-shy--last-fold))
-         (setq code-shy--last-fold nil))
-        ((not (buffer-live-p (overlay-buffer code-shy--last-fold)))
-         (delete-overlay code-shy--last-fold)
-         (setq code-shy--last-fold nil)
-         )
-        ((not (and (<= (overlay-start code-shy--last-fold) (point))
-                   (<= (point) (overlay-end code-shy--last-fold))))
-         (save-excursion
-           (vimish-fold--refold code-shy--last-fold)
-           )
-         (setq code-shy--last-fold nil)
-         )
-        )
-  ;; enter
-  (unless code-shy--last-fold
-    (-when-let (ov (-filter #'vimish-fold--vimish-overlay-p (overlays-at (point))))
-        (setq code-shy--last-fold (car ov))
-        (vimish-fold--unfold (car ov))
-        )
-    )
-  )
-
 (defun code-shy-clear-vimish-cache ()
   (mapc 'f-delete (f-files vimish-fold-dir))
   )
@@ -161,7 +133,10 @@ Vimish-fold's any blocks matching code-shy-fold-patterns
          nil)
         ((and code-shy-minor-mode code-shy-start-hidden)
          (code-shy-run-folds)
-         (add-hook 'post-command-hook #'code-shy-sensor-h 90 t)
+         (if cursor-sensor-mode
+             (code-shy--register-sensor)
+           (add-hook 'cursor-sensor-mode-hook #'code-shy--register-sensor)
+           )
          )
         (code-shy-minor-mode
          (code-shy-clear-vimish-cache)
@@ -235,6 +210,41 @@ Vimish-fold's any blocks matching code-shy-fold-patterns
   )
 
 ;;-- end ivy
+
+;;-- sensor
+
+(defun code-shy--register-sensor ()
+  (add-hook 'post-command-hook #'code-shy-sensor-h 90 t))
+
+(defun code-shy-sensor-h ()
+  (interactive)
+  ;; Cleanup/exit
+  (cond ((not code-shy--last-fold)
+         nil)
+        ((not (overlayp code-shy--last-fold))
+         (setq code-shy--last-fold nil))
+        ((not (buffer-live-p (overlay-buffer code-shy--last-fold)))
+         (delete-overlay code-shy--last-fold)
+         (setq code-shy--last-fold nil)
+         )
+        ((not (and (<= (overlay-start code-shy--last-fold) (point))
+                   (<= (point) (overlay-end code-shy--last-fold))))
+         (save-excursion
+           (vimish-fold--refold code-shy--last-fold)
+           )
+         (setq code-shy--last-fold nil)
+         )
+        )
+  ;; enter
+  (unless code-shy--last-fold
+    (-when-let (ov (-filter #'vimish-fold--vimish-overlay-p (overlays-at (point))))
+        (setq code-shy--last-fold (car ov))
+        (vimish-fold--unfold (car ov))
+        )
+    )
+  )
+
+;;-- end sensor
 
 (provide 'code-shy-minor-mode)
 ;;; code-shy-minor-mode.el ends here
