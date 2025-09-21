@@ -25,7 +25,7 @@
 
 ;;-- vars
 
-(defvar-local code-shy-fold-patterns (list "%s-- %s %s" "%s -- $s $s") "Patterns to format with comment, end? and name form" )
+(defvar-local code-shy-fold-patterns (list "%s -- %s %s" "%s -- %s %s") "Patterns to format with comment, end? and name form" )
 
 (defvar-local code-shy-block-depth 2)
 
