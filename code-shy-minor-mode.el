@@ -1,4 +1,19 @@
-;;; code-shy.el -*- lexical-binding: t; no-byte-compile: nil; -*-
+;;; code-shy-minor-mode.el --- Auto code folding -*- lexical-binding: t; no-byte-compile: nil; -*-
+;; Copyright (C) 2025 john
+;;
+;; Author: john <https://github.com/jgrey4296>
+;; Created: October 29, 2025
+;; Version: 1.0.0
+;; Keywords:
+;; Homepage: https://github.com/jgrey4296/code-shy-minor-mode
+;; Package-Requires: ((emacs "30.2") (vimish-fold) (s) (evil) (ivy) (f) (dash))
+;; Package written on: ((emacs 30.2))
+;;
+;; This file is not part of GNU Emacs.
+;;
+
+;;; Commentary:
+
 ;;-- requires
 (eval-when-compile
   (require 'vimish-fold)
